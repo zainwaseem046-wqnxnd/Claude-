@@ -13,16 +13,8 @@ export const config = {
   databaseUrl: required("DATABASE_URL"),
   uploadDir: path.resolve(process.env.UPLOAD_DIR ?? "./uploads"),
   appUrl: (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, ""),
-  stripe: {
-    secretKey: process.env.STRIPE_SECRET_KEY ?? "",
-    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
-    allowLive: process.env.STRIPE_ALLOW_LIVE === "true",
-    prices: {
-      starter: process.env.STRIPE_PRICE_STARTER ?? "",
-      professional: process.env.STRIPE_PRICE_PROFESSIONAL ?? "",
-      business: process.env.STRIPE_PRICE_BUSINESS ?? "",
-    },
-  },
+  /** Where plan upgrade requests are emailed. Payments are handled manually (invoice/bank transfer). */
+  billingContactEmail: process.env.BILLING_CONTACT_EMAIL ?? "",
   smtp: {
     host: process.env.SMTP_HOST ?? "",
     port: Number(process.env.SMTP_PORT ?? 587),

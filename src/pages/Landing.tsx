@@ -18,7 +18,7 @@ const faqs = [
   { q: "Are photos kept private?", a: "Yes. Photos are stored outside the public web, are only served to logged-in members of your company, or to someone holding the private link for that specific report. Location data is stripped before upload." },
   { q: "Does it work on any phone?", a: "Yes — CleaningProof runs in the browser on iPhone and Android. There's nothing to install." },
   { q: "Is there a free trial?", a: "Every account starts with a 14-day free trial with Professional features. No card needed to start." },
-  { q: "Can I cancel any time?", a: "Yes. Plans are monthly with no contract. You can cancel from the billing page in settings." },
+  { q: "How do I pay?", a: "Choose a plan in Settings and we'll invoice you monthly. There's no contract and no card details are stored in the app. Cancel any time by letting us know." },
 ];
 
 export function Landing() {

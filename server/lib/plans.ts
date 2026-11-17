@@ -30,7 +30,7 @@ export interface BusinessBilling {
 
 export function isActive(b: BusinessBilling): boolean {
   if (b.plan === "trial") return new Date(b.trial_ends_at).getTime() > Date.now();
-  return b.subscription_status === "active" || b.subscription_status === "trialing" || b.subscription_status === "past_due";
+  return b.subscription_status === "active";
 }
 
 export function limitsFor(b: BusinessBilling): PlanLimits {
@@ -42,7 +42,7 @@ export function requireActive(b: BusinessBilling) {
     throw paymentRequired(
       b.plan === "trial"
         ? "Your free trial has ended. Choose a plan to keep creating reports."
-        : "Your subscription is not active. Update your billing to keep creating reports.",
+        : "Your plan is not active. Contact us to reactivate it and keep creating reports.",
       "subscription_inactive",
     );
   }

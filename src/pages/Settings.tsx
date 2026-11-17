@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Navigate, useSearchParams } from "react-router-dom";
+import { useState, type FormEvent } from "react";
+import { Navigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useAsync } from "../lib/useAsync";
@@ -106,68 +106,50 @@ function Branding() {
   );
 }
 
-interface BillingInfo { plan: PlanId; trial_ends_at: string; subscription_status: string | null; active: boolean; limits: Limits; usage: { sites: number; users: number }; has_customer: boolean; stripe_mode: "test" | "live" | "unconfigured" }
+interface BillingInfo { plan: PlanId; trial_ends_at: string; subscription_status: string | null; active: boolean; limits: Limits; usage: { sites: number; users: number }; plan_requested: string | null; plan_requested_at: string | null; requests_enabled: boolean }
 
 function Billing() {
-  const { refresh } = useAuth();
-  const [params, setParams] = useSearchParams();
-  const [msg, setMsg] = useState<{ kind: "success" | "error" | "info"; text: string } | null>(null);
+  const { me } = useAuth();
+  const [msg, setMsg] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const synced = useRef(false);
   const { data, loading, reload } = useAsync(() => api.get<BillingInfo>("/api/billing"), []);
 
-  useEffect(() => {
-    const result = params.get("checkout");
-    const sid = params.get("session_id");
-    if (!result || synced.current) return;
-    synced.current = true;
-    const clear = () => { const n = new URLSearchParams(params); n.delete("checkout"); n.delete("session_id"); setParams(n, { replace: true }); };
-    if (result === "success" && sid) {
-      api.post("/api/billing/sync", { session_id: sid })
-        .then(async () => { await reload(); await refresh(); setMsg({ kind: "success", text: "Thank you! Your subscription is active." }); })
-        .catch((e) => setMsg({ kind: "error", text: e.message }))
-        .finally(clear);
-    } else if (result === "cancelled") { setMsg({ kind: "info", text: "Checkout cancelled. No payment was taken." }); clear(); }
-    document.getElementById("billing")?.scrollIntoView();
-  }, [params, setParams, reload, refresh]);
-
-  async function checkout(plan: string) {
+  async function request(plan: string) {
     setBusy(plan); setMsg(null);
-    try { const { url } = await api.post<{ url: string }>("/api/billing/checkout", { plan }); window.location.href = url; }
-    catch (e) { setMsg({ kind: "error", text: (e as Error).message }); setBusy(null); }
-  }
-  async function portal() {
-    setBusy("portal"); setMsg(null);
-    try { const { url } = await api.post<{ url: string }>("/api/billing/portal"); window.location.href = url; }
-    catch (e) { setMsg({ kind: "error", text: (e as Error).message }); setBusy(null); }
+    try {
+      await api.post("/api/billing/request", { plan });
+      await reload();
+      setMsg({ kind: "success", text: `Request sent. We'll contact you at ${me!.user.email} to arrange payment and activate your plan.` });
+    } catch (e) { setMsg({ kind: "error", text: (e as Error).message }); } finally { setBusy(null); }
   }
 
   if (loading || !data) return <Card id="billing" title="Plan & billing"><PageLoader /></Card>;
-  const subscribed = data.plan !== "trial" && ["active", "trialing", "past_due"].includes(data.subscription_status ?? "");
+  const label = (id: string) => id[0].toUpperCase() + id.slice(1);
   return (
-    <Card id="billing" title="Plan & billing">
+    <Card id="billing" title="Plan & billing" subtitle="Monthly plans, invoiced directly. No card details are stored in CleaningProof.">
       {msg && <div className="mb-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
-      {data.stripe_mode === "test" && <div className="mb-4"><Alert kind="warning">Stripe test mode: use card 4242 4242 4242 4242 with any future date and CVC. No real payment is taken.</Alert></div>}
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-navy-50/70 p-4">
-        <div>
-          <div className="font-bold">{data.limits.label}{data.plan !== "trial" && ` – £${data.limits.priceGbp}/month`}</div>
-          <div className="text-sm text-navy-500">
-            {data.plan === "trial" ? (data.active ? `Free trial until ${fmtDate(data.trial_ends_at)}` : `Trial ended ${fmtDate(data.trial_ends_at)}`) : `Status: ${data.subscription_status ?? "unknown"}`}
-            {" · "}{data.usage.sites}/{data.limits.maxSites} sites · {data.usage.users}/{data.limits.maxUsers} users
-          </div>
+      <div className="mb-5 rounded-xl bg-navy-50/70 p-4">
+        <div className="font-bold">{data.limits.label}{data.plan !== "trial" && ` – £${data.limits.priceGbp}/month`}{!data.active && <span className="chip ml-2 bg-amber-100 text-amber-900">Inactive</span>}</div>
+        <div className="text-sm text-navy-500">
+          {data.plan === "trial" ? (data.active ? `Free trial until ${fmtDate(data.trial_ends_at)}` : `Trial ended ${fmtDate(data.trial_ends_at)}`) : data.active ? "Active" : "Not active"}
+          {" · "}{data.usage.sites}/{data.limits.maxSites} sites · {data.usage.users}/{data.limits.maxUsers} users
         </div>
-        {data.has_customer && <button className="btn-secondary btn-sm" onClick={portal} disabled={busy === "portal"}>{busy === "portal" && <Spinner className="h-4 w-4" />}Manage billing</button>}
+        {data.plan_requested && data.plan_requested_at && (
+          <div className="mt-2 text-sm font-medium text-brand-700">{label(data.plan_requested)} plan requested on {fmtDate(data.plan_requested_at)}. We'll be in touch to activate it.</div>
+        )}
       </div>
-      {!subscribed && (
-        data.stripe_mode === "unconfigured" ? <Alert kind="info">Online payments are not configured on this server yet.</Alert> : (
-          <PricingTable renderAction={(id, popular) => (
-            <button className={`${popular ? "btn-primary" : "btn-secondary"} w-full`} disabled={Boolean(busy)} onClick={() => checkout(id)}>
-              {busy === id && <Spinner />}Choose {id[0].toUpperCase() + id.slice(1)}
+      {!data.requests_enabled ? (
+        <Alert kind="info">Plan changes are not set up on this server yet.</Alert>
+      ) : (
+        <PricingTable renderAction={(id, popular) => {
+          const current = data.plan === id && data.active;
+          return (
+            <button className={`${popular ? "btn-primary" : "btn-secondary"} w-full`} disabled={Boolean(busy) || current || data.plan_requested === id} onClick={() => request(id)}>
+              {busy === id && <Spinner />}{current ? "Current plan" : data.plan_requested === id ? "Requested" : `Request ${label(id)}`}
             </button>
-          )} />
-        )
+          );
+        }} />
       )}
-      {subscribed && <p className="text-sm text-navy-500">To change plan, update your card or cancel, use Manage billing.</p>}
     </Card>
   );
 }

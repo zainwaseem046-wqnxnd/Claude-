@@ -4,7 +4,7 @@ Mobile-first SaaS for small UK commercial cleaning companies to **prove contract
 a cleaner completes a visit report on their phone in about two minutes (checklist, before/after photos, issues),
 and the business gets a branded PDF and a private link to share with the client.
 
-**Stack:** React + TypeScript + Tailwind (Vite) · Node/Express + TypeScript · PostgreSQL · pdfkit · Stripe (test mode first) · Nodemailer (SMTP)
+**Stack:** React + TypeScript + Tailwind (Vite) · Node/Express + TypeScript · PostgreSQL · pdfkit · Nodemailer (SMTP). No payment provider: plans are invoiced manually.
 
 ## Features
 
@@ -18,7 +18,7 @@ and the business gets a branded PDF and a private link to share with the client.
 | Dashboard | Live counts: total visits, completed this month, sites serviced, outstanding issues, drafts awaiting submission, recent reports |
 | History | Search, filter by site and date range, view, download PDF, resend by email, mark issues resolved |
 | Client sharing | Private 192-bit random link per report, viewable without an account, revocable; exposes only that report |
-| Pricing/billing | Starter £19 / Professional £29 / Business £49 via Stripe Checkout + Billing Portal + webhooks; plan limits enforced server-side |
+| Pricing/billing | Starter £19 / Professional £29 / Business £49. Owners request a plan in Settings (emailed to you); you activate it with `npm run set-plan`. Plan limits enforced server-side |
 | Business plan | Multiple cleaner logins (restricted role), CSV export, per-site 30-day completion stats |
 
 ### Plan limits (server-enforced, `server/lib/plans.ts`)
@@ -31,7 +31,7 @@ and the business gets a branded PDF and a private link to share with the client.
 | Users | 1 | 1 | 1 | 15 |
 | CSV export & site stats | – | – | – | ✓ |
 
-When a trial ends or a subscription lapses, existing reports stay viewable/downloadable, but new sites and visits are blocked until a plan is chosen.
+When a trial ends or a plan is set inactive, existing reports stay viewable/downloadable, but new sites and visits are blocked until a plan is chosen.
 
 ## Security notes
 
@@ -40,7 +40,7 @@ When a trial ends or a subscription lapses, existing reports stay viewable/downl
 - **CSRF:** cookies are `SameSite=Lax` and every state-changing API call must send `X-Requested-With: cleaningproof`.
 - **Validation:** all input is checked with zod on the server; queries are parameterised; CSV export neutralises spreadsheet formulas.
 - **Other protections:** Helmet with a strict CSP, rate-limited auth and public endpoints, constant-time-ish login, and `noindex` on shared reports.
-- **Payments:** live Stripe keys (`sk_live_…`) are **refused** unless `STRIPE_ALLOW_LIVE=true`.
+- **Payments:** none are taken in the app, and no card details are stored.
 
 ## Local development
 
@@ -48,7 +48,7 @@ Requirements: Node ≥ 20, PostgreSQL ≥ 14.
 
 ```bash
 npm install
-cp .env.example .env          # set DATABASE_URL, UPLOAD_DIR, STRIPE_SECRET_KEY (sk_test_…)
+cp .env.example .env          # set DATABASE_URL, UPLOAD_DIR
 npm run migrate               # creates tables (also runs automatically on server start)
 npm run dev                   # API on :3000, web on http://localhost:5173 (proxies /api)
 ```
@@ -84,35 +84,34 @@ Any Node host with PostgreSQL and a **persistent disk** for uploads works (Rende
 3. **Environment variables** (see `.env.example`):
    - `NODE_ENV=production`, `DATABASE_URL`, `UPLOAD_DIR`, `APP_URL=https://your-domain`
    - `PGSSLMODE=require` if your provider requires SSL
-   - `STRIPE_SECRET_KEY=sk_test_…`, `STRIPE_WEBHOOK_SECRET=whsec_…`
+   - `BILLING_CONTACT_EMAIL` – where plan requests are sent
    - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (Postmark, SendGrid, Mailgun, Amazon SES…). Without SMTP in production, "Send" returns a clear error and the share link / PDF download still work.
 4. The schema migrates automatically on start. Check `GET /api/health`.
 5. Put the service behind HTTPS (the default on these hosts). Cookies are `Secure` in production.
 
-### Stripe (test mode first)
+### Billing (manual)
 
-1. In the Stripe Dashboard with **Test mode on**, copy the test secret key (`sk_test_…`) into `STRIPE_SECRET_KEY`.
-2. Optional: create three monthly GBP prices and set `STRIPE_PRICE_STARTER/PROFESSIONAL/BUSINESS`. If they're unset, Checkout creates the £19/£29/£49 monthly prices inline.
-3. **Webhook:** add an endpoint `https://your-domain/api/stripe/webhook` with these events:
-   - `checkout.session.completed`
-   - `customer.subscription.created`
-   - `customer.subscription.updated`
-   - `customer.subscription.deleted`
+No payment provider is used. When an owner clicks **Request Professional** (or another plan) in Settings, an email goes to `BILLING_CONTACT_EMAIL` with their details. Invoice them however you like (bank transfer, your accounting software), then run this on the server:
 
-   Put the signing secret in `STRIPE_WEBHOOK_SECRET`. To test locally: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
-4. **Billing → Customer portal:** save a configuration (allow cancel and plan switching) so "Manage billing" works.
-5. Test end to end with card `4242 4242 4242 4242`: subscribe, check that the plan updates in Settings, then cancel through the portal and check the status changes. The app also confirms the checkout on return, so it works before webhooks do.
-6. **Only after the above passes:** switch to the live key and live webhook secret, and set `STRIPE_ALLOW_LIVE=true`.
+```bash
+npm run set-plan -- owner@client.co.uk professional   # activate starter | professional | business
+npm run set-plan -- owner@client.co.uk inactive       # suspend: reports stay viewable, new visits blocked
+npm run set-plan -- owner@client.co.uk trial 14       # (re)start a 14-day trial
+npm run set-plan -- owner@client.co.uk                # show current plan
+```
+
+On Render/Railway/Fly, run it from the service's shell.
 
 ## Project layout
 
 ```
 server/            Express API (TypeScript)
-  routes/          auth, business+team, sites, visits (photos/pdf/share/send/csv), dashboard, public, billing
+  routes/          auth, business+team, sites, visits (photos/pdf/share/send/csv), dashboard, public, billing (plan requests)
   lib/             auth sessions, plan limits, storage & upload checks, PDF renderer, mailer, validation
   schema.sql       PostgreSQL schema (idempotent)
 src/               React app
   pages/           Landing, Pricing, Auth, Dashboard, Sites, SiteForm, NewVisit, VisitForm, Reports, ReportView, Settings, PublicReport
   components/      Layout, UI kit, pricing table, report body
-scripts/smoke-test.ts
+scripts/smoke-test.ts   end-to-end API test
+scripts/set-plan.ts     operator tool to activate/suspend plans
 ```

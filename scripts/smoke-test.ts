@@ -163,6 +163,10 @@ async function main() {
   check("team members require Business plan", (await a.req("POST", "/api/team", { name: "C", email: `c${stamp}@test.dev`, password: "password123" })).status === 402);
   check("logo upload allowed on trial", (await a.req("POST", "/api/business/logo", form(png(120, 40, [15, 27, 48]), "logo.png", "image/png"))).status === 200);
   check("billing endpoint", (await a.req("GET", "/api/billing")).json.limits.maxSites === 20);
+  check("plan request validates plan", (await a.req("POST", "/api/billing/request", { plan: "free-forever" })).status === 400);
+  check("request a plan", (await a.req("POST", "/api/billing/request", { plan: "business" })).status === 200);
+  check("billing shows requested plan", (await a.req("GET", "/api/billing")).json.plan_requested === "business");
+  check("plan request does not change plan by itself", (await a.req("GET", "/api/auth/me")).json.business.plan === "trial");
 
   console.log("Logout");
   await a.req("POST", "/api/auth/logout");

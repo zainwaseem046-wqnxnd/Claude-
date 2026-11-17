@@ -12,10 +12,16 @@ CREATE TABLE IF NOT EXISTS businesses (
   plan text NOT NULL DEFAULT 'trial' CHECK (plan IN ('trial','starter','professional','business')),
   trial_ends_at timestamptz NOT NULL DEFAULT (now() + interval '14 days'),
   subscription_status text,
-  stripe_customer_id text UNIQUE,
-  stripe_subscription_id text UNIQUE,
+  plan_requested text,
+  plan_requested_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Upgrades for databases created by earlier versions
+ALTER TABLE businesses DROP COLUMN IF EXISTS stripe_customer_id;
+ALTER TABLE businesses DROP COLUMN IF EXISTS stripe_subscription_id;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS plan_requested text;
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS plan_requested_at timestamptz;
 
 CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

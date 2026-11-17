@@ -15,7 +15,7 @@ import { sitesRouter } from "./routes/sites.js";
 import { visitsRouter } from "./routes/visits.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { publicRouter } from "./routes/public.js";
-import { billingRouter, stripeWebhook } from "./routes/billing.js";
+import { billingRouter } from "./routes/billing.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -33,7 +33,7 @@ export function createApp() {
           fontSrc: ["'self'", "https://fonts.gstatic.com"],
           connectSrc: ["'self'"],
           frameAncestors: ["'none'"],
-          formAction: ["'self'", "https://checkout.stripe.com"],
+          formAction: ["'self'"],
           upgradeInsecureRequests: config.isProd ? [] : null,
         },
       },
@@ -42,7 +42,6 @@ export function createApp() {
   );
 
   app.get("/api/health", (_req, res) => { res.json({ ok: true }); });
-  app.post("/api/stripe/webhook", ...stripeWebhook);
 
   app.use(cookieParser());
   app.use(express.json({ limit: "200kb" }));
@@ -69,14 +68,10 @@ export function createApp() {
       const msg = err.code === "LIMIT_FILE_SIZE" ? "Photo is too large (maximum 8 MB)" : "Invalid upload";
       return res.status(err.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({ error: msg });
     }
-    const e = err as { type?: string; code?: string; status?: number; message?: string; raw?: { message?: string } };
+    const e = err as { type?: string; code?: string };
     if (e?.type === "entity.parse.failed") return res.status(400).json({ error: "Invalid JSON" });
     if (e?.type === "entity.too.large") return res.status(413).json({ error: "Request too large" });
     if (e?.code === "22P02") return res.status(404).json({ error: "Not found" });
-    if (typeof e?.type === "string" && e.type.startsWith("Stripe")) {
-      console.error("Stripe error:", e.message);
-      return res.status(502).json({ error: `Payment provider error: ${e.message}` });
-    }
     console.error(err);
     res.status(500).json({ error: "Something went wrong. Please try again." });
   });
