@@ -1,0 +1,55 @@
+{
+  "name": "cleaningproof",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CleaningProof - commercial cleaning completion reports",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"tsx watch server/index.ts\" \"vite\"",
+    "build": "vite build && tsc -p tsconfig.server.json && cp server/schema.sql dist-server/schema.sql",
+    "start": "node dist-server/index.js",
+    "migrate": "tsx server/migrate-cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "test:e2e": "tsx scripts/smoke-test.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.4",
+    "helmet": "^8.3.0",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.6.0",
+    "pdfkit": "^0.20.2",
+    "pg": "^8.23.1",
+    "pg-connection-string": "^2.14.1",
+    "stripe": "^23.1.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pdfkit": "^0.17.7",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "autoprefixer": "^10.6.2",
+    "concurrently": "^10.0.7",
+    "postcss": "^8.5.33",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.5",
+    "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}
